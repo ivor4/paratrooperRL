@@ -1,27 +1,42 @@
 import pygame
 import random
 import numpy as np
+from paratroopergame_objects import *
 
 
 GAME_MODE_NORMAL = 0
 GAME_MODE_EXT_ACTION = 1
 
+# Action values
 ACTION_NONE = 0
 ACTION_SHOOT = 1
+ACTION_ROTATE_RIGHT = 2
+ACTION_ROTATE_LEFT = 3
 
-ACTION_LIST_INFO = [(ACTION_NONE, 'No action'), (ACTION_SHOOT, 'Shoot')]
+
+ACTION_LIST_INFO = [(ACTION_NONE, 'No action'), (ACTION_SHOOT, 'Shoot'), (ACTION_ROTATE_LEFT, 'Rotate Left'), (ACTION_ROTATE_RIGHT, 'Rotate Right')]
 
 _SHAPE_RECTANGLE = 0
 _SHAPE_CIRCLE = 1
 
+_POOL_SIZE = 64
 
-
+# Just their array index in _POSSIBLE_KEYS list
 _KEY_INDEX_JUMP = 0
+_KEY_INDEX_RIGHT = 1
+_KEY_INDEX_LEFT = 2
+
 
 _POSSIBLE_KEYS = []
 
+#Values associated for keys are designed to be bit fields, so every value is power of 2 and can be mannipulated with binary operators easily
+#Tuple is pygame keycode and associated power2 value for bitfield
 _POSSIBLE_KEYS.append((pygame.K_SPACE, 0x1))
+_POSSIBLE_KEYS.append((pygame.K_RIGHT, 0x2))
+_POSSIBLE_KEYS.append((pygame.K_LEFT, 0x4))
 
+
+#Different ways to destroy an object
 _KILLED_NOT = 0
 _KILLED_WASTED = 1
 _KILLED_BINGO = 2
@@ -37,7 +52,7 @@ _ROUND_CYCLES = _ROUND_TIME_S * _EXPECTED_FPS
 _SCREEN_SIZE = [1280, 720]
 _OUTPUT_SIZE_FACTOR = 1
 
-#Xmin,XMax - X axis Region of interest of screen in pixels
+#Xmin,XMax - X axis Region of interest of screen in pixels. Depending on this, observation will be bigger or smaller
 _REGION_OF_INTEREST = [0,1280]
 
 #Output in X will be reduced according to factor
@@ -71,17 +86,38 @@ class GameInstance:
         random.seed(seed)
 
         if(self.OK):
+
+            # This list is the most important in game, as only instances listed here will be updated and/or rendered. An instance outside this list is unable to do anything
             self.GameObjects = []
 
+            # Declare empty pools
+            self.PooledAircrafts = []
+            self.PooledParatroopers = []
+            self.PooledBullets = []
+
+
+            # Prepare Pools. This strategy allocates game instances memory, so it will be necessary no more to create instances, just reuse them
+            for _ in range(_POOL_SIZE):
+                self.PooledAircrafts(_Aircraft())
+                self.PooledParatroopers(_Paratrooper())
+                self.PooledBullets(_Bullet())
+
+            # Prepare elapsed time
             self.ElapsedTime = 0.0
+
+            #Create output observation array
             self.OutputObs = np.zeros((_OUTPUT_NP_Y_LENGTH, _OUTPUT_NP_X_LENGHT))
 
-            
+            # Running game = True (by the moment)
             self.Running = True
+
+            # Score initialization
             self.Score = 0
+
+            # Neutral pressed keys in bit field is 0
             self.DownKeys = 0x0
 
-
+            # Launch a first black screen to window
             self.Screen.fill('black')
             pygame.display.flip()
 
@@ -89,10 +125,11 @@ class GameInstance:
         else:
             raise Exception("Game cannot start")
         
-
+    # Information
     def isRunning(self):
         return self.Running
 
+    # Basic close operation (terminates game and also pygame system and window)
     def close(self):
         if(self.Running):
             self.Running = False
@@ -100,24 +137,38 @@ class GameInstance:
         if(pygame.get_init()):
             pygame.quit()
 
+    # Get pressed keys and determine an action
     def _KeyDetection(self):
         keys = pygame.key.get_pressed()
 
+        # Neutral pressed keys in bit field is 0
         actualDownKeys = 0x0
         
+        # Search along all possible declared keys, the ones which were pressed by doing OR operation, as they are power of 2, they will not overlap
         for i in range(len(_POSSIBLE_KEYS)):
             if keys[_POSSIBLE_KEYS[i][0]]:
                 actualDownKeys |= _POSSIBLE_KEYS[i][1]
 
+        # XOR between actual used keys and last cycle will give the keys which suffered a change between this and last cycle
         keyDiff = (self.DownKeys ^ actualDownKeys)
+
+        # Just now pressed keys (action to push, not to maintain pushed), are the ones which suffered a change AND actual down keys
         pressedKeys = keyDiff & actualDownKeys
+
+        # Just now released keys are the ones which suffered a change AND previous active keys
         releasedKeys = keyDiff & self.DownKeys
 
+        # Priorities in determining output action: SHOOT > RIGHT > LEFT
         if(pressedKeys & _POSSIBLE_KEYS[_KEY_INDEX_JUMP][1]):
             outAction = ACTION_SHOOT
+        elif(actualDownKeys & _POSSIBLE_KEYS[_KEY_INDEX_RIGHT][1]): # uses actualDownKeys as action can be continuous (no need to press again)
+            outAction = ACTION_ROTATE_RIGHT
+        elif(actualDownKeys & _POSSIBLE_KEYS[_KEY_INDEX_LEFT][1]): # uses actualDownKeys as action can be continuous (no need to press again)
+            outAction = ACTION_ROTATE_LEFT
         else:
             outAction = ACTION_NONE
 
+        # Update downkeys so in next cycle will be possible to observe press/release changes
         self.DownKeys = actualDownKeys
 
         return outAction
@@ -144,15 +195,17 @@ class GameInstance:
 
   
 
+    # The most important action, as it processes one game step taking note on given external action and giving an observation for this processed step (Gfx render is not done here)
     def step(self, extAction = ACTION_NONE):
-        #obs, dones, info
+
+
         info = {}
 
         quited = False
-        trimmed = False
+        truncated = False
 
         if(self.Running and (self.render_mode == 'human')):
-            # poll for events
+            # poll for events (this is slow operation, so it is not intended to be done whilst ai training. That will in counterpart freeze game window
             # pygame.QUIT event means the user clicked X to close your window    
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -161,8 +214,7 @@ class GameInstance:
                     break
 
         if(self.Running):
-            # RENDER YOUR GAME HERE
-        
+            #Detect keys if Human is playing, otherwise take external action
             if(self.Mode == GAME_MODE_NORMAL):
                 inputAction = self._KeyDetection()
             else:
@@ -173,9 +225,10 @@ class GameInstance:
             if(inputAction == ACTION_SHOOT):
                 pass
 
-            #Clear virtual output
+            # Clear virtual output
             self.OutputObs.fill(0.0)
                 
+            # Every-instance-loop (most important part of step)
             for gObject in self.GameObjects:
                 gObject.Update()
 
@@ -189,17 +242,17 @@ class GameInstance:
                     self.OutputObs[gObject.height,virtualmin:virtualmax] = 1.0
         
             
-
+            # Increment elapsed time
             self.ElapsedTime +=_TIME_PER_CYCLE
 
-            #End game when time is over
+            # End game when time is over
             if(self.ElapsedTime >= _ROUND_TIME_S):
                 self.Running =False
-                trimmed = True
+                truncated = True
         
 
 
-        done = not self.Running and not trimmed
+        done = not self.Running and not truncated
          
         info['none'] = 0
         
@@ -208,8 +261,9 @@ class GameInstance:
             trimmed = True
             self.close()
                 
-        return self.OutputObs, done, trimmed, info
+        return self.OutputObs, done, truncated, info
 
+    # Rendering is optional when training AI, but is required in Env wrapper
     def render(self):
         if(self.Running):
             # fill the screen with a color to wipe away anything from last frame
@@ -219,6 +273,7 @@ class GameInstance:
             for gObject in self.GameObjects:
                 gObject.Draw(self.Screen)
 
+            # Info text
             img = self.Font.render('SCORE: '+str(self.Score), True, 'white')
             self.Screen.blit(img, (10, 10))
             img = self.Font.render('REMAINING TIME: '+str(_ROUND_TIME_S - int(self.ElapsedTime)), True, 'white')
@@ -227,99 +282,8 @@ class GameInstance:
             # flip() the display to put your work on screen
             pygame.display.flip()
 
-            # limits FPS to 60
+            # limits FPS to 60 when playing rendered
             self.Clock.tick(_EXPECTED_FPS)  
-
-
-class _GameObject:
-    def __init__(self, shapeType, shapeColor, shapeSize, objType):
-        self.objType = objType 
-
-        self.shapeType = shapeType
-        self.shapeColor = shapeColor
-        self.shapeSize = shapeSize
-        self.position = pygame.Vector2(0, 0)
-        self.speed = pygame.Vector2(0, 0)
-        self.rect = pygame.Rect(self.position.x, self.position.y, self.shapeSize.x, self.shapeSize.y)
-        self.killed = _KILLED_NOT
-
-    def ReCreate(self, shapeType, shapeColor, shapeSize):
-        self.shapeType = shapeType
-        self.shapeColor = shapeColor
-        self.shapeSize = shapeSize
-        self.position = pygame.Vector2(0, 0)
-        self.speed = pygame.Vector2(0, 0)
-        self.rect = pygame.Rect(self.position.x, self.position.y, self.shapeSize.x, self.shapeSize.y)
-        self.killed = _KILLED_NOT
-        
-    def Update(self):
-        self.position.x += self.speed.x
-        self.position.y += self.speed.y
-
-        self.rect.width = self.shapeSize.x
-        self.rect.height = self.shapeSize.y
-        
-        self.rect.left = self.position.x - self.rect.width/2
-        self.rect.top = self.position.y - self.rect.height/2
-
-    def Kill(self, reason):
-        self.killed = reason 
-
-    def Draw(self, surface):
-        if(self.shapeType == _SHAPE_CIRCLE):
-            pygame.draw.circle(surface, self.shapeColor, self.position, self.shapeSize.x)
-        else:
-            pygame.draw.rect(surface, self.shapeColor, self.rect)
-
-
-class _Canyon(_GameObject):
-    def __init__(self, shapeColor, position):
-        super().__init__(_SHAPE_RECTANGLE, shapeColor, pygame.Vector2(16,32), _OBJ_TYPE_CANYON)
-        self.position = position
-
-class _Bullet(_GameObject):
-    def __init__(self):
-        super().__init__(_SHAPE_CIRCLE, 'red', pygame.Vector2(4,4), _OBJ_TYPE_BULLET)
-        self.WasUseful = False
-
-    def ReCreate(self, position, initialSpeed):
-        super().ReCreate(_SHAPE_CIRCLE, 'red', pygame.Vector2(4,4))
-        self.WasUseful = False
-
-        self.position = position
-        self.speed = initialSpeed
-
-    def Update(self):
-        super().Update()
-        if(self.position.y < 0):
-            if(self.WasUseful):
-                self.Kill(_KILLED_NEUTRAL)
-            else:
-                self.Kill(_KILLED_WASTED)
-
-    def setWasUseful(self):
-        self.WasUseful = True
-
-
-class _Explosion(_GameObject):
-    def __init__(self):
-        super().__init__(_SHAPE_CIRCLE, 'yellow', pygame.Vector2(2,2), _OBJ_TYPE_EXPLOSION)
-        self.Timeout = 0
-
-    def ReCreate(self, position):
-        super().ReCreate(_SHAPE_CIRCLE, 'yellow', pygame.Vector2(2,2))
-
-        self.Timeout = 30
-        self.position = position
-
-    def Update(self):
-        super().Update()
-        self.Timeout -= 1
-        if(self.Timeout <= 0):
-            self.Kill(_KILLED_NEUTRAL)
-        else:
-            radius = (30 - self.Timeout) * 10 / 30
-            self.shapeSize = pygame.Vector2(radius,radius)
 
 
 
