@@ -7,6 +7,11 @@ class GameObject:
 
     #Static Variable (same for ALL objects). Game System will pass its value on startup
     GameObjects = None
+    ActiveBullets = None
+    PooledBullets = None
+    PooledAircrafts = None
+    PooledParatroopers = None
+    Random = None
 
     def __init__(self, objType):
         self.objType = objType 
@@ -61,14 +66,21 @@ class Cannon(GameObject):
         self.position = position
         self.angle = (CANNON_MAX_ANGLE + CANNON_MIN_ANGLE) / 2.0
 
+        self.cos_angle = math.cos(self.angle)
+        self.sin_angle = math.sin(self.angle)
+
         self.segments[0].centerx = position.x
         self.segments[0].centery = position.y
 
     def MoveRight(self):
         self.angle = max(CANNON_MIN_ANGLE, self.angle - CANNON_ANGLE_ADVANCE)
+        self.cos_angle = math.cos(self.angle)
+        self.sin_angle = math.sin(self.angle)
 
     def MoveLeft(self):
         self.angle = min(CANNON_MAX_ANGLE, self.angle + CANNON_ANGLE_ADVANCE)
+        self.cos_angle = math.cos(self.angle)
+        self.sin_angle = math.sin(self.angle)
 
     def Update(self):
         super().Update()
@@ -79,15 +91,11 @@ class Cannon(GameObject):
 
         for i in range(1,CANNON_SEGMENTS):
             radius = CANNON_SEGMENT_RADIUS*(i)
-            self.segments[i].centerx = self.position.x + radius*math.cos(self.angle)
-            self.segments[i].centery = self.position.y - radius*math.sin(self.angle)
+            self.segments[i].centerx = self.position.x + radius*self.cos_angle
+            self.segments[i].centery = self.position.y - radius*self.sin_angle
             pygame.draw.rect(surface, self.shapeColor,self.segments[i])
 
 class Bullet(GameObject):
-
-    #Game system will pass this list value
-    ActiveBullets = None
-
     def __init__(self):
         super().__init__(OBJ_TYPE_BULLET)
 
@@ -98,10 +106,11 @@ class Bullet(GameObject):
         self.position = position
         self.speed = initialSpeed
 
-        Bullet.ActiveBullets.append(self)
+        GameObject.ActiveBullets.append(self)
 
     def Destroy(self):
-        Bullet.ActiveBullets.remove(self)
+        GameObject.ActiveBullets.remove(self)
+        GameObject.PooledBullets.append(self)
         super().Destroy()
 
     def Update(self):
@@ -140,26 +149,66 @@ class Aircraft(GameObject):
     def __init__(self):
         super().__init__(OBJ_TYPE_AIRCRAFT)
 
-    def ReCreate(self, position):
+    def ReCreate(self, position, speed):
         super().ReCreate(SHAPE_RECTANGLE, 'blue', pygame.Vector2(48,16))
 
         self.position = position
+        self.speed = speed
+
+        droparea = GameObject.Random.choice([0,1])
+        self.dropX = GameObject.Random.randint(DROP_ZONES[droparea][0], DROP_ZONES[droparea][1])
+        self.dropped = False
+
+    def Destroy(self):
+        GameObject.PooledAircrafts.append(self)
+        super().Destroy()
 
     def Update(self):
         super().Update()
+        if(((self.speed.x > 0) and (self.position.x > SCREEN_SIZE[0]))or((self.speed.x) < 0 and (self.position.x < 0))):
+            self.Kill(KILLED_WASTED)
+        else:
+            if((not self.dropped)and(((self.speed.x < 0) and (self.dropX >= self.position.x))or((self.speed.x > 0) and (self.dropX <= self.position.x)))):
+                self.dropped = True
+                if(len(GameObject.PooledParatroopers)>0):
+                    paratrooper = GameObject.PooledParatroopers.pop(0)
+                    paratrooper.ReCreate(pygame.Vector2(self.dropX, self.position.y), pygame.Vector2(0,PARATROOPER_FALL_SPEED))
+                else:
+                    raise Exception('Pool of paratroopers exhausted, critical error')
+            #Check collision against all active bullets
+            for bullet in GameObject.ActiveBullets:
+                if(self.rect.colliderect(bullet.rect)):
+                    bullet.setWasUseful()
+                    self.Kill(KILLED_BINGO)
+                    break
 
 
 class Paratrooper(GameObject):
     def __init__(self):
         super().__init__(OBJ_TYPE_PARATROOPER)
 
-    def ReCreate(self, position):
-        super().ReCreate(SHAPE_RECTANGLE, 'blue', pygame.Vector2(16,48))
+    def ReCreate(self, position, speed):
+        super().ReCreate(SHAPE_RECTANGLE, 'orange', pygame.Vector2(16,32))
 
         self.position = position
+        self.speed = speed
+
+    def Destroy(self):
+        GameObject.PooledParatroopers.append(self)
+        super().Destroy()
 
     def Update(self):
         super().Update()
+
+        if(self.position.y > SCREEN_SIZE[1]):
+            self.Kill(KILLED_WASTED)
+        else:
+            for bullet in GameObject.ActiveBullets:
+                if(self.rect.colliderect(bullet.rect)):
+                    bullet.setWasUseful()
+                    self.Kill(KILLED_BINGO)
+                    break
+        
 
 
 #Decorative

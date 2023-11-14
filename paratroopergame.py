@@ -26,8 +26,6 @@ class GameSystem:
 
     def reset(self, seed = 0):
 
-        random.seed(seed)
-
         if(self.OK):
 
             # This list is the most important in game, as only instances listed here will be updated and/or rendered. An instance outside this list is unable to do anything
@@ -42,11 +40,18 @@ class GameSystem:
             self.PooledBullets = []
             self.PooledExplosions = []
 
+            # Own Random instance (for seeding purposes and in order to not to interact with global library)
+            self.Random = random.Random(seed)
+
             # Pass GameObjects list to class static variable (this make possible automatic register/de-register when creating or destroying)
             GameObject.GameObjects = self.GameObjects
+            GameObject.Random = self.Random
 
             # Pass Active Bullets list to class static variable (this make possible automatic register/de-register when creating or destroying)
-            Bullet.ActiveBullets = self.ActiveBullets
+            GameObject.ActiveBullets = self.ActiveBullets
+            GameObject.PooledBullets = self.PooledBullets
+            GameObject.PooledAircrafts = self.PooledAircrafts
+            GameObject.PooledParatroopers = self.PooledParatroopers
 
             # Prepare Pools. This strategy allocates game instances memory, so it will be necessary no more to create instances, just reuse them
             for _ in range(POOL_SIZE):
@@ -82,6 +87,11 @@ class GameSystem:
             self.BulletReady = True
             self.ReloadTimeout = 0
 
+            
+
+            # Aircraft spawn timeout
+            self.AircraftTimeout = self.Random.randint(AIRCRAFT_SPAWN_TIME[0],AIRCRAFT_SPAWN_TIME[1])
+
             # Neutral pressed keys in bit field is 0
             self.DownKeys = 0x0
 
@@ -113,9 +123,9 @@ class GameSystem:
         actualDownKeys = 0x0
         
         # Search along all possible declared keys, the ones which were pressed by doing OR operation, as they are power of 2, they will not overlap
-        for i in range(len(POSSIBLE_KEYS)):
-            if keys[POSSIBLE_KEYS[i][0]]:
-                actualDownKeys |= POSSIBLE_KEYS[i][1]
+        for possible_key in POSSIBLE_KEYS:
+            if keys[possible_key[0]]:
+                actualDownKeys |= possible_key[1]
 
         # XOR between actual used keys and last cycle will give the keys which suffered a change between this and last cycle
         keyDiff = (self.DownKeys ^ actualDownKeys)
@@ -146,8 +156,8 @@ class GameSystem:
             if(len(self.PooledBullets)>0):
                 newBullet = self.PooledBullets.pop(0)
 
-                speedx = BULLET_SPEED_ADVANCE_PER_CYCLE * math.cos(self.CannonInstance.angle)
-                speedy = -BULLET_SPEED_ADVANCE_PER_CYCLE * math.sin(self.CannonInstance.angle)
+                speedx = BULLET_SPEED_ADVANCE_PER_CYCLE * self.CannonInstance.cos_angle
+                speedy = -BULLET_SPEED_ADVANCE_PER_CYCLE * self.CannonInstance.sin_angle
 
                 newBullet.ReCreate(pygame.Vector2(self.CannonInstance.position), pygame.Vector2(speedx, speedy))
     
@@ -169,6 +179,33 @@ class GameSystem:
                 
     def _MoveLeft(self):
         self.CannonInstance.MoveLeft()
+
+    def _AircraftSpawn(self):
+
+        #Subtract 1 cycle to timeout
+        self.AircraftTimeout -= 1
+
+        #In case it reaches 0, spawn a new aircraft and reload timer. Timer must always be reloaded.
+        if(self.AircraftTimeout == 0):
+            if(len(self.PooledAircrafts) > 0):
+                #Decide its direction and speed
+                aircraft_speed = self.Random.randint(AIRCRAFT_SPEED_RANGE[0], AIRCRAFT_SPEED_RANGE[1])
+                aircraft_dir = self.Random.choice([-1,1])
+
+                if(aircraft_dir == 1):
+                    spawn_pos = pygame.Vector2(0, 30)
+                else:
+                    spawn_pos = pygame.Vector2(SCREEN_SIZE[0], 30)
+
+                #Take first of pool and recreate it
+                aircraft = self.PooledAircrafts.pop(0)
+                aircraft.ReCreate(spawn_pos, pygame.Vector2(aircraft_speed*aircraft_dir, 0))
+            else:
+                print('Pool of aircrafts exhausted. Fatal error')
+                self.Running = False
+
+            #Reload timeout
+            self.AircraftTimeout = self.Random.randint(AIRCRAFT_SPAWN_TIME[0], AIRCRAFT_SPAWN_TIME[1])
 
     
 
@@ -195,6 +232,9 @@ class GameSystem:
             #Manage shoot reload time
             self._ShootReload()
 
+            #Manage Aircraft spawn
+            self._AircraftSpawn()
+
             #Detect keys if Human is playing, otherwise take external action
             if(self.Mode == GAME_MODE_NORMAL):
                 inputAction = self._KeyDetection()
@@ -217,6 +257,9 @@ class GameSystem:
             # Every-instance-loop (most important part of step)
             for gObject in self.GameObjects:
                 gObject.Update()
+
+                if(gObject.killed != KILLED_NOT):
+                    gObject.Destroy()
 
                 if((gObject.killed == KILLED_NOT)and(gObject.position.x > REGION_OF_INTEREST[0])and(gObject.position.x < REGION_OF_INTEREST[1])):
                     pass

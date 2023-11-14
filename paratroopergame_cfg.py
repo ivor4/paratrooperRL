@@ -16,7 +16,7 @@ ACTION_ROTATE_LEFT = 3
 ACTION_LIST_INFO = [(ACTION_NONE, 'No action'), (ACTION_SHOOT, 'Shoot'), (ACTION_ROTATE_LEFT, 'Rotate Left'), (ACTION_ROTATE_RIGHT, 'Rotate Right')]
 
 
-POOL_SIZE = 64
+POOL_SIZE = 16
 
 # Just their array index in _POSSIBLE_KEYS list
 KEY_INDEX_JUMP = 0
@@ -74,8 +74,8 @@ CANNON_MIN_ANGLE = 0.0
 CANNON_MAX_ANGLE = math.pi
 CANNON_ANGLE_AMPLITUDE = CANNON_MAX_ANGLE - CANNON_MIN_ANGLE
 
-#180deg in 2 seconds
-CANNON_ANGLE_ADVANCE = CANNON_ANGLE_AMPLITUDE/(2*EXPECTED_FPS)
+#180deg in 1 second
+CANNON_ANGLE_ADVANCE = CANNON_ANGLE_AMPLITUDE/(1*EXPECTED_FPS)
 
 
 #Game output
@@ -96,6 +96,17 @@ OUTPUT_NP_Y_LENGTH = SCREEN_SIZE[1]
 #Height at which Cannon is placed (the lower, the easier)
 CANNON_HEIGHT = SCREEN_SIZE[1] * 5 // 6
 
-BULLET_RELOAD_TIME_CYCLES = 30
+BULLET_RELOAD_TIME_CYCLES = 10
 BULLET_SPEED_ADVANCE_PER_CYCLE = 10
+
+# Range between min and max cycles (will be used with random range)
+AIRCRAFT_SPAWN_TIME = [120, 360]
+
+# Aircraft speed range (random)
+AIRCRAFT_SPEED_RANGE = [5, 10]
+
+# Drop zones with min and max X each one
+DROP_ZONES = [[100,SCREEN_SIZE[0]//2 - 100], [SCREEN_SIZE[0]//2 + 100, SCREEN_SIZE[0]-100]]
+
+PARATROOPER_FALL_SPEED = 3
 
