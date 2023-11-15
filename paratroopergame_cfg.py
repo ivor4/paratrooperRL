@@ -79,13 +79,13 @@ CANNON_ANGLE_ADVANCE = CANNON_ANGLE_AMPLITUDE/(1*EXPECTED_FPS)
 
 
 #Game output
-OUTPUT_SIZE_FACTOR = 1
+OUTPUT_SIZE_FACTOR = 8
 
 #Xmin,XMax - X axis Region of interest of screen in pixels. Depending on this, observation will be bigger or smaller
 REGION_OF_INTEREST = [0,1280]
 
 #Output in X will be reduced according to factor
-OUTPUT_NP_X_LENGHT = (REGION_OF_INTEREST[1] - REGION_OF_INTEREST[0]) // OUTPUT_SIZE_FACTOR
+OUTPUT_NP_X_LENGTH = (REGION_OF_INTEREST[1] - REGION_OF_INTEREST[0]) // OUTPUT_SIZE_FACTOR
 
 #Mlp will be used and not an image, Y axis is = number of aircraft lanes
 OUTPUT_NP_Y_LENGTH = SCREEN_SIZE[1]
@@ -100,13 +100,17 @@ BULLET_RELOAD_TIME_CYCLES = 10
 BULLET_SPEED_ADVANCE_PER_CYCLE = 10
 
 # Range between min and max cycles (will be used with random range)
-AIRCRAFT_SPAWN_TIME = [120, 360]
+AIRCRAFT_SPAWN_TIME = [60, 180]
 
 # Aircraft speed range (random)
-AIRCRAFT_SPEED_RANGE = [5, 10]
+AIRCRAFT_SPEED_RANGE = [7, 14]
 
 # Drop zones with min and max X each one
 DROP_ZONES = [[100,SCREEN_SIZE[0]//2 - 100], [SCREEN_SIZE[0]//2 + 100, SCREEN_SIZE[0]-100]]
 
+# Falling speed of paratrooper
 PARATROOPER_FALL_SPEED = 3
+
+# Max number of permitted paratroopers reach bottom part
+MAX_PARATROOPERS_REACH_BOTTOM = 5
 

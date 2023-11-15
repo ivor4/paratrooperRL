@@ -52,6 +52,7 @@ class GameSystem:
             GameObject.PooledBullets = self.PooledBullets
             GameObject.PooledAircrafts = self.PooledAircrafts
             GameObject.PooledParatroopers = self.PooledParatroopers
+            GameObject.PooledExplosions = self.PooledExplosions
 
             # Prepare Pools. This strategy allocates game instances memory, so it will be necessary no more to create instances, just reuse them
             for _ in range(POOL_SIZE):
@@ -75,13 +76,19 @@ class GameSystem:
             self.ElapsedTime = 0.0
 
             #Create output observation array
-            self.OutputObs = np.zeros((OUTPUT_NP_Y_LENGTH, OUTPUT_NP_X_LENGHT))
+            self.OutputObs = np.zeros((OUTPUT_NP_Y_LENGTH, OUTPUT_NP_X_LENGTH))
 
             # Running game = True (by the moment)
             self.Running = True
 
             # Score initialization
             self.Score = 0
+
+            # Number of paratroopers which reached bottom
+            self.ParatroopersReached = 0
+            self.ParatroopersDestroyed = 0
+            self.AircraftsDestroyed = 0
+            self.MissedBullets = 0
 
             # Bullet initial values
             self.BulletReady = True
@@ -164,7 +171,7 @@ class GameSystem:
                 self.BulletReady = False
                 self.ReloadTimeout = BULLET_RELOAD_TIME_CYCLES
             else:
-                print('Critical Error, bullet pool exhausted')
+                raise Exception('Critical Error, bullet pool exhausted')
                 self.Running = False
 
     def _ShootReload(self):
@@ -201,7 +208,7 @@ class GameSystem:
                 aircraft = self.PooledAircrafts.pop(0)
                 aircraft.ReCreate(spawn_pos, pygame.Vector2(aircraft_speed*aircraft_dir, 0))
             else:
-                print('Pool of aircrafts exhausted. Fatal error')
+                raise Exception('Pool of aircrafts exhausted. Fatal error')
                 self.Running = False
 
             #Reload timeout
@@ -259,32 +266,53 @@ class GameSystem:
                 gObject.Update()
 
                 if(gObject.killed != KILLED_NOT):
+                    if(gObject.objType == OBJ_TYPE_PARATROOPER):
+                        if(gObject.killed == KILLED_WASTED):
+                            self.ParatroopersReached += 1
+                            self.Score -= 10
+                        else:
+                            self.ParatroopersDestroyed += 1
+                            self.Score += 1
+                    elif(gObject.objType == OBJ_TYPE_BULLET):
+                        if(gObject.killed == KILLED_WASTED):
+                            self.MissedBullets += 1
+                    elif(gObject.objType == OBJ_TYPE_AIRCRAFT):
+                        if(gObject.killed == KILLED_BINGO):
+                            self.AircraftsDestroyed += 1
+                            self.Score += 10
+
                     gObject.Destroy()
-
-                if((gObject.killed == KILLED_NOT)and(gObject.position.x > REGION_OF_INTEREST[0])and(gObject.position.x < REGION_OF_INTEREST[1])):
-                    pass
-                    #virtualwidth = int(gObject.shapeSize.x /OUTPUT_SIZE_FACTOR)
-                    #virtualpos = int((gObject.position.x - REGION_OF_INTEREST[0]) / OUTPUT_SIZE_FACTOR)
+                else:
+                    if((gObject.objType == OBJ_TYPE_PARATROOPER)and(gObject.position.x > REGION_OF_INTEREST[0])and(gObject.position.x < REGION_OF_INTEREST[1])):
+                        virtualwidth = int(gObject.shapeSize.x /OUTPUT_SIZE_FACTOR)
+                        virtualheight = int(gObject.shapeSize.y /OUTPUT_SIZE_FACTOR)
+                        virtualposx = int((gObject.position.x - REGION_OF_INTEREST[0]) / OUTPUT_SIZE_FACTOR)
+                        virtualposy = int((gObject.position.y) / OUTPUT_SIZE_FACTOR)
                             
-                    #virtualmin = max(0,virtualpos - virtualwidth//2)
-                    #virtualmax = min(OUTPUT_NP_X_LENGHT-1, virtualpos + virtualwidth//2) + 1
+                        virtualxmin = max(0,virtualposx - virtualwidth//2)
+                        virtualxmax = min(OUTPUT_NP_X_LENGTH-1, virtualposx + virtualwidth//2) + 1
+                        virtualymin = max(0,virtualposy - virtualheight//2)
+                        virtualymax = min(OUTPUT_NP_Y_LENGTH-1, virtualposy + virtualheight//2) + 1
 
-                    #self.OutputObs[0,virtualmin:virtualmax] = 1.0
+                        self.OutputObs[virtualymin:virtualymax,virtualxmin:virtualxmax] = 1.0
         
             
             # Increment elapsed time
             self.ElapsedTime +=TIME_PER_CYCLE
 
             # End game when time is over
-            if(self.ElapsedTime >= ROUND_TIME_S):
-                self.Running =False
+            if(self.ParatroopersReached >= MAX_PARATROOPERS_REACH_BOTTOM):
+                self.Running = False
                 truncated = True
         
 
 
         done = not self.Running and not truncated
          
-        info['none'] = 0
+        info['DestroyedParatroopers'] = self.ParatroopersDestroyed
+        info['EscapedParatroopers'] = self.ParatroopersReached
+        info['MissedBullets'] = self.MissedBullets
+        info['DestroyedAircrafts'] = self.AircraftsDestroyed
         
 
         if(quited):
@@ -306,7 +334,15 @@ class GameSystem:
             # Info text
             img = self.Font.render('SCORE: '+str(self.Score), True, 'white')
             self.Screen.blit(img, (10, 10))
-            img = self.Font.render('REMAINING TIME: '+str(ROUND_TIME_S - int(self.ElapsedTime)), True, 'white')
+            img = self.Font.render('ESCAPED PARATROOPERS: '+str(self.ParatroopersReached)+' / '+str(MAX_PARATROOPERS_REACH_BOTTOM), True, 'white')
+            self.Screen.blit(img, (10, 30))
+            img = self.Font.render('DESTROYED PARATROOPERS: '+str(self.ParatroopersDestroyed), True, 'white')
+            self.Screen.blit(img, (10, 50))
+            img = self.Font.render('DESTROYED AIRCRAFTS: '+str(self.AircraftsDestroyed), True, 'white')
+            self.Screen.blit(img, (10, 70))
+            img = self.Font.render('MISSED BULLETS: '+str(self.MissedBullets), True, 'white')
+            self.Screen.blit(img, (10, 90))
+            img = self.Font.render('ELAPSED TIME: '+str(int(self.ElapsedTime)), True, 'white')
             self.Screen.blit(img, (10, 110))
         
             # flip() the display to put your work on screen

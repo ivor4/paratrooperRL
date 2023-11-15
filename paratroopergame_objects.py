@@ -3,6 +3,7 @@ import pygame
 import math
 
 
+
 class GameObject:
 
     #Static Variable (same for ALL objects). Game System will pass its value on startup
@@ -11,6 +12,7 @@ class GameObject:
     PooledBullets = None
     PooledAircrafts = None
     PooledParatroopers = None
+    PooledExplosions = None
     Random = None
 
     def __init__(self, objType):
@@ -51,6 +53,15 @@ class GameObject:
             pygame.draw.circle(surface, self.shapeColor, self.position, self.shapeSize.x)
         else:
             pygame.draw.rect(surface, self.shapeColor, self.rect)
+
+    @classmethod
+    def CreateExplosion(cls, position):
+        if(len(cls.PooledExplosions) > 0):
+            newExplosion = cls.PooledExplosions.pop(0)
+            newExplosion.ReCreate(pygame.Vector2(position))
+        else:
+            raise Exception('Pool of explosions is exhausted. Fatal error')
+
 
 
 class Cannon(GameObject):
@@ -135,6 +146,10 @@ class Explosion(GameObject):
         self.Timeout = 30
         self.position = position
 
+    def Destroy(self):
+        GameObject.PooledExplosions.append(self)
+        super().Destroy()
+
     def Update(self):
         super().Update()
         self.Timeout -= 1
@@ -180,6 +195,7 @@ class Aircraft(GameObject):
                 if(self.rect.colliderect(bullet.rect)):
                     bullet.setWasUseful()
                     self.Kill(KILLED_BINGO)
+                    GameObject.CreateExplosion(bullet.position)
                     break
 
 
@@ -207,6 +223,7 @@ class Paratrooper(GameObject):
                 if(self.rect.colliderect(bullet.rect)):
                     bullet.setWasUseful()
                     self.Kill(KILLED_BINGO)
+                    GameObject.CreateExplosion(bullet.position)
                     break
         
 
