@@ -88,7 +88,7 @@ REGION_OF_INTEREST = [0,1280]
 OUTPUT_NP_X_LENGTH = (REGION_OF_INTEREST[1] - REGION_OF_INTEREST[0]) // OUTPUT_SIZE_FACTOR
 
 #Mlp will be used and not an image, Y axis is = number of aircraft lanes
-OUTPUT_NP_Y_LENGTH = SCREEN_SIZE[1]
+OUTPUT_NP_Y_LENGTH = SCREEN_SIZE[1] // OUTPUT_SIZE_FACTOR
 
 
 #Game Difficulty
