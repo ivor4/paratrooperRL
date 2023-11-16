@@ -79,7 +79,7 @@ CANNON_ANGLE_ADVANCE = CANNON_ANGLE_AMPLITUDE/(1*EXPECTED_FPS)
 
 
 #Game output
-OUTPUT_SIZE_FACTOR = 8
+OUTPUT_SIZE_FACTOR = 16
 
 #Xmin,XMax - X axis Region of interest of screen in pixels. Depending on this, observation will be bigger or smaller
 REGION_OF_INTEREST = [0,1280]
@@ -89,6 +89,12 @@ OUTPUT_NP_X_LENGTH = (REGION_OF_INTEREST[1] - REGION_OF_INTEREST[0]) // OUTPUT_S
 
 #Mlp will be used and not an image, Y axis is = number of aircraft lanes
 OUTPUT_NP_Y_LENGTH = SCREEN_SIZE[1] // OUTPUT_SIZE_FACTOR
+
+#Visual segments to help to know where cannon aims
+LASER_SEGMENTS = 10
+
+RADIAL_LASER_DISTANCE = ((SCREEN_SIZE[0]//2)//OUTPUT_SIZE_FACTOR)//LASER_SEGMENTS
+
 
 
 #Game Difficulty
@@ -113,4 +119,5 @@ PARATROOPER_FALL_SPEED = 3
 
 # Max number of permitted paratroopers reach bottom part
 MAX_PARATROOPERS_REACH_BOTTOM = 5
+
 
