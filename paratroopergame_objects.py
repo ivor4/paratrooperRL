@@ -205,7 +205,7 @@ class Paratrooper(GameObject):
         super().__init__(OBJ_TYPE_PARATROOPER)
 
     def ReCreate(self, position, speed):
-        super().ReCreate(SHAPE_RECTANGLE, 'orange', pygame.Vector2(16,32))
+        super().ReCreate(SHAPE_RECTANGLE, 'orange', pygame.Vector2(32,32))
 
         self.position = position
         self.speed = speed

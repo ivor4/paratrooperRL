@@ -80,7 +80,7 @@ class GameSystem:
             self.ElapsedTime = 0.0
 
             #Create output observation array
-            self.OutputObs = np.zeros((OUTPUT_NP_Y_LENGTH, OUTPUT_NP_X_LENGTH, 1))
+            self.OutputObs = np.zeros((OUTPUT_NP_Y_LENGTH, OUTPUT_NP_X_LENGTH))
 
             # Running game = True (by the moment)
             self.Running = True
@@ -265,7 +265,7 @@ class GameSystem:
                 pass
 
             # Clear virtual output
-            self.OutputObs.fill(0)
+            self.OutputObs.fill(0.0)
 
             # Every-instance-loop (most important part of step)
             for gObject in self.GameObjects:
@@ -300,7 +300,7 @@ class GameSystem:
                         virtualymin = max(0,virtualposy - virtualheight//2)
                         virtualymax = min(OUTPUT_NP_Y_LENGTH-1, virtualposy + virtualheight//2) + 1
 
-                        self.OutputObs[virtualymin:virtualymax,virtualxmin:virtualxmax,0] = 255
+                        self.OutputObs[virtualymin:virtualymax,virtualxmin:virtualxmax] = 1.0
         
             
             # Prepare output of cannon aim
@@ -313,7 +313,7 @@ class GameSystem:
                 lasery = int(laserbasey - self.CannonInstance.sin_angle * RADIAL_LASER_DISTANCE * i)
                 lasery = max(0,lasery)
                 lasery = min(OUTPUT_NP_Y_LENGTH-1, lasery)
-                self.OutputObs[lasery,laserx,0] = 127
+                self.OutputObs[lasery,laserx] = 0.5
 
             # Increment elapsed time
             self.ElapsedTime +=TIME_PER_CYCLE
