@@ -9,6 +9,7 @@ class GameObject:
     #Static Variable (same for ALL objects). Game System will pass its value on startup
     GameObjects = None
     ActiveBullets = None
+    ActiveParatroopers = None
     PooledBullets = None
     PooledAircrafts = None
     PooledParatroopers = None
@@ -209,7 +210,10 @@ class Paratrooper(GameObject):
         self.position = position
         self.speed = speed
 
+        GameObject.ActiveParatroopers.append(self)
+
     def Destroy(self):
+        GameObject.ActiveParatroopers.remove(self)
         GameObject.PooledParatroopers.append(self)
         super().Destroy()
 

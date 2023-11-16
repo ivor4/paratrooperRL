@@ -33,6 +33,9 @@ class GameSystem:
 
             # This is a fast-access to bullets (only bullets), to make as fast as possible detection of collission iterating against this list
             self.ActiveBullets = []
+            
+            # This is a fast-access to Paratroopers, the first one will always be the one which is nearest to ground
+            self.ActiveParatroopers = []
 
             # Declare empty pools
             self.PooledAircrafts = []
@@ -49,6 +52,7 @@ class GameSystem:
 
             # Pass Active Bullets list to class static variable (this make possible automatic register/de-register when creating or destroying)
             GameObject.ActiveBullets = self.ActiveBullets
+            GameObject.ActiveParatroopers = self.ActiveParatroopers
             GameObject.PooledBullets = self.PooledBullets
             GameObject.PooledAircrafts = self.PooledAircrafts
             GameObject.PooledParatroopers = self.PooledParatroopers
@@ -225,6 +229,8 @@ class GameSystem:
         quited = False
         truncated = False
 
+        lowestParatrooperHeight = 0
+
         if(self.Running and (self.render_mode == 'human')):
             # poll for events (this is slow operation, so it is not intended to be done whilst ai training). That will in counterpart freeze game window
             # pygame.QUIT event means the user clicked X to close your window    
@@ -300,6 +306,12 @@ class GameSystem:
             # Increment elapsed time
             self.ElapsedTime +=TIME_PER_CYCLE
 
+            # Get highest height of first paratrooper (lowest position, Y axis grows when going bottom)
+            if(len(self.ActiveParatroopers) > 0):
+                lowestParatrooperHeight = self.ActiveParatroopers[0].position.y
+            else:
+                lowestParatrooperHeight = 0
+
             # End game when time is over
             if(self.ParatroopersReached >= MAX_PARATROOPERS_REACH_BOTTOM):
                 self.Running = False
@@ -309,6 +321,7 @@ class GameSystem:
 
         done = not self.Running and not truncated
          
+        info['LowestParatrooper'] = lowestParatrooperHeight
         info['DestroyedParatroopers'] = self.ParatroopersDestroyed
         info['EscapedParatroopers'] = self.ParatroopersReached
         info['MissedBullets'] = self.MissedBullets
