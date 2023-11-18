@@ -156,6 +156,7 @@ cython_debug/
 .vs/
 logs/
 models/
+stored_models/
 
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can

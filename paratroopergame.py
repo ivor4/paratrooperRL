@@ -80,7 +80,7 @@ class GameSystem:
             self.ElapsedTime = 0.0
 
             #Create output observation array
-            self.OutputObs = np.zeros((OUTPUT_NP_Y_LENGTH, OUTPUT_NP_X_LENGTH))
+            self.OutputObs = np.zeros((OUTPUT_NP_Y_LENGTH, OUTPUT_NP_X_LENGTH, 1))
 
             # Running game = True (by the moment)
             self.Running = True
@@ -265,7 +265,7 @@ class GameSystem:
                 pass
 
             # Clear virtual output
-            self.OutputObs.fill(0.0)
+            self.OutputObs.fill(0)
 
             # Every-instance-loop (most important part of step)
             for gObject in self.GameObjects:
@@ -288,22 +288,25 @@ class GameSystem:
                             self.Score += 10
 
                     gObject.Destroy()
-                else:
-                    if((gObject.objType == OBJ_TYPE_PARATROOPER)and(gObject.position.x > REGION_OF_INTEREST[0])and(gObject.position.x < REGION_OF_INTEREST[1])):
-                        virtualwidth = int(gObject.shapeSize.x /OUTPUT_SIZE_FACTOR)
-                        virtualheight = int(gObject.shapeSize.y /OUTPUT_SIZE_FACTOR)
-                        virtualposx = int((gObject.position.x - REGION_OF_INTEREST[0]) / OUTPUT_SIZE_FACTOR)
-                        virtualposy = int((gObject.position.y) / OUTPUT_SIZE_FACTOR)
-                            
-                        virtualxmin = max(0,virtualposx - virtualwidth//2)
-                        virtualxmax = min(OUTPUT_NP_X_LENGTH-1, virtualposx + virtualwidth//2) + 1
-                        virtualymin = max(0,virtualposy - virtualheight//2)
-                        virtualymax = min(OUTPUT_NP_Y_LENGTH-1, virtualposy + virtualheight//2) + 1
 
-                        self.OutputObs[virtualymin:virtualymax,virtualxmin:virtualxmax] = 1.0
+            #Only draw lowest paratrooper
+            if(len(self.ActiveParatroopers) > 0):
+                gObject = self.ActiveParatroopers[0]
+                if((gObject.position.x > REGION_OF_INTEREST[0])and(gObject.position.x < REGION_OF_INTEREST[1])):
+                    virtualwidth = int(gObject.shapeSize.x /OUTPUT_SIZE_FACTOR)
+                    virtualheight = int(gObject.shapeSize.y /OUTPUT_SIZE_FACTOR)
+                    virtualposx = int((gObject.position.x - REGION_OF_INTEREST[0]) / OUTPUT_SIZE_FACTOR)
+                    virtualposy = int((gObject.position.y) / OUTPUT_SIZE_FACTOR)
+                            
+                    virtualxmin = max(0,virtualposx - virtualwidth//2)
+                    virtualxmax = min(OUTPUT_NP_X_LENGTH-1, virtualposx + virtualwidth//2) + 1
+                    virtualymin = max(0,virtualposy - virtualheight//2)
+                    virtualymax = min(OUTPUT_NP_Y_LENGTH-1, virtualposy + virtualheight//2) + 1
+
+                    self.OutputObs[virtualymin:virtualymax,virtualxmin:virtualxmax,0] = 255
         
             
-            # Prepare output of cannon aim
+            # Prepare output of cannon aim (Laser)
             laserbasex = self.CannonInstance.position.x / OUTPUT_SIZE_FACTOR
             laserbasey = self.CannonInstance.position.y / OUTPUT_SIZE_FACTOR
             for i in range(LASER_SEGMENTS):
@@ -313,7 +316,7 @@ class GameSystem:
                 lasery = int(laserbasey - self.CannonInstance.sin_angle * RADIAL_LASER_DISTANCE * i)
                 lasery = max(0,lasery)
                 lasery = min(OUTPUT_NP_Y_LENGTH-1, lasery)
-                self.OutputObs[lasery,laserx] = 0.5
+                self.OutputObs[lasery,laserx,0] = 127
 
             # Increment elapsed time
             self.ElapsedTime +=TIME_PER_CYCLE
