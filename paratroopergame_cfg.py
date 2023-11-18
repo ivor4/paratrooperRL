@@ -7,13 +7,10 @@ GAME_MODE_NORMAL = 0
 GAME_MODE_EXT_ACTION = 1
 
 #Action values
-ACTION_NONE = 0
-ACTION_SHOOT = 1
-ACTION_ROTATE_RIGHT = 2
-ACTION_ROTATE_LEFT = 3
-
-
-ACTION_LIST_INFO = [(ACTION_NONE, 'No action'), (ACTION_SHOOT, 'Shoot'), (ACTION_ROTATE_LEFT, 'Rotate Left'), (ACTION_ROTATE_RIGHT, 'Rotate Right')]
+#ACTION_NONE = 0
+#ACTION_SHOOT = 1
+#ACTION_ROTATE_RIGHT = 2
+#ACTION_ROTATE_LEFT = 3
 
 
 POOL_SIZE = 16
@@ -24,14 +21,17 @@ KEY_INDEX_RIGHT = 1
 KEY_INDEX_LEFT = 2
 
 
-POSSIBLE_KEYS = []
+
+ACTION_LIST_INFO = [(KEY_INDEX_JUMP, 'Shoot'), (KEY_INDEX_RIGHT, 'Rotate Right'), (KEY_INDEX_LEFT, 'Rotate Left')]
 
 #Values associated for keys are designed to be bit fields, so every value is power of 2 and can be mannipulated with binary operators easily
 #Tuple is pygame keycode and associated power2 value for bitfield
+POSSIBLE_KEYS = []
 POSSIBLE_KEYS.append((pygame.K_SPACE, 0x1))
 POSSIBLE_KEYS.append((pygame.K_RIGHT, 0x2))
 POSSIBLE_KEYS.append((pygame.K_LEFT, 0x4))
 
+ACTION_NONE = [False,False,False]
 
 #Different object types
 OBJ_TYPE_CANNON = 0

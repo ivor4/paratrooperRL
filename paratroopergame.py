@@ -5,23 +5,31 @@ from paratroopergame_cfg import *
 import pygame
 
 
-
 class GameSystem:
     def __init__(self, caption, mode, render_mode):
         self.Caption = caption
         self.Mode = mode
         self.render_mode = render_mode
 
-        if(not pygame.get_init()):
-            pygame.init()
-            pygame.display.set_caption(self.Caption)
-            self.Screen = pygame.display.set_mode((SCREEN_SIZE[0], SCREEN_SIZE[1]))
-            self.Clock = pygame.time.Clock()
-            self.Font = pygame.font.SysFont(None, 24)
+        if(pygame.get_init()):
+            if(render_mode == 'human'):
+                if(not pygame.display.get_init()):
+                    pygame.display.init()
+                    while(not pygame.display.get_init()):
+                        pass
+                pygame.display.set_caption(self.Caption)
+                self.Screen = pygame.display.set_mode((SCREEN_SIZE[0], SCREEN_SIZE[1]))
+                self.Clock = pygame.time.Clock()
+                self.Font = pygame.font.SysFont(None, 24)
+            else:
+                self.Screen = None
+                self.Clock = None
+                self.Font = None
+            
             self.OK = True
         else:
-            print('Pygame already running')
             self.OK = False
+            raise Exception('Pygame not initialized')
 
 
     def reset(self, seed = 0):
@@ -42,6 +50,9 @@ class GameSystem:
             self.PooledParatroopers = []
             self.PooledBullets = []
             self.PooledExplosions = []
+
+            # Initialize action box to all 0
+            self.InputActions = np.zeros(len(POSSIBLE_KEYS))
 
             # Own Random instance (for seeding purposes and in order to not to interact with global library)
             self.Random = random.Random(seed)
@@ -122,9 +133,8 @@ class GameSystem:
     def close(self):
         if(self.Running):
             self.Running = False
-
-        if(pygame.get_init()):
-            pygame.quit()
+        if(self.render_mode == 'human'):
+            pygame.display.quit()
 
     # Get pressed keys and determine an action
     def _KeyDetection(self):
@@ -147,20 +157,14 @@ class GameSystem:
         # Just now released keys are the ones which suffered a change AND previous active keys
         releasedKeys = keyDiff & self.DownKeys
 
-        # Priorities in determining output action: SHOOT > RIGHT > LEFT
-        if(pressedKeys & POSSIBLE_KEYS[KEY_INDEX_JUMP][1]):
-            outAction = ACTION_SHOOT
-        elif(actualDownKeys & POSSIBLE_KEYS[KEY_INDEX_RIGHT][1]): # uses actualDownKeys as action can be continuous (no need to press again)
-            outAction = ACTION_ROTATE_RIGHT
-        elif(actualDownKeys & POSSIBLE_KEYS[KEY_INDEX_LEFT][1]): # uses actualDownKeys as action can be continuous (no need to press again)
-            outAction = ACTION_ROTATE_LEFT
-        else:
-            outAction = ACTION_NONE
+        # Priorities in determining output action: SHOOT | RIGHT | LEFT (Can be combined). Left + Right annulate themselves
+        self.InputActions[KEY_INDEX_JUMP] = pressedKeys & POSSIBLE_KEYS[KEY_INDEX_JUMP][1] != 0
+        self.InputActions[KEY_INDEX_RIGHT] = actualDownKeys & POSSIBLE_KEYS[KEY_INDEX_RIGHT][1] != 0
+        self.InputActions[KEY_INDEX_LEFT] = actualDownKeys & POSSIBLE_KEYS[KEY_INDEX_LEFT][1] != 0
 
         # Update downkeys so in next cycle will be possible to observe press/release changes
         self.DownKeys = actualDownKeys
 
-        return outAction
 
     def _Shoot(self):
         if(self.BulletReady):
@@ -229,7 +233,8 @@ class GameSystem:
         quited = False
         truncated = False
 
-        lowestParatrooperHeight = 0
+        lowestParatrooperPosition = [0,0]
+        lowestParatrooperExists = False
 
         if(self.Running and (self.render_mode == 'human')):
             # poll for events (this is slow operation, so it is not intended to be done whilst ai training). That will in counterpart freeze game window
@@ -250,19 +255,19 @@ class GameSystem:
 
             #Detect keys if Human is playing, otherwise take external action
             if(self.Mode == GAME_MODE_NORMAL):
-                inputAction = self._KeyDetection()
+                self._KeyDetection()
             else:
-                inputAction = extAction
+                self.InputActions = extAction
 
-            #Manage given actions (only one per step, as DQN can only give ONE action)
-            if(inputAction == ACTION_SHOOT):
+            #Manage given actions
+            if(self.InputActions[KEY_INDEX_JUMP]):
                 self._Shoot()
-            elif(inputAction == ACTION_ROTATE_RIGHT):
+
+            if(self.InputActions[KEY_INDEX_RIGHT] and (not self.InputActions[KEY_INDEX_LEFT])):
                 self._MoveRight()
-            elif(inputAction == ACTION_ROTATE_LEFT):
+
+            if(self.InputActions[KEY_INDEX_LEFT] and (not self.InputActions[KEY_INDEX_RIGHT])):
                 self._MoveLeft()
-            else:
-                pass
 
             # Clear virtual output
             self.OutputObs.fill(0)
@@ -323,9 +328,9 @@ class GameSystem:
 
             # Get highest height of first paratrooper (lowest position, Y axis grows when going bottom)
             if(len(self.ActiveParatroopers) > 0):
-                lowestParatrooperHeight = self.ActiveParatroopers[0].position.y
-            else:
-                lowestParatrooperHeight = 0
+                lowestParatrooperExists = True
+                lowestParatrooperPosition[0] = self.ActiveParatroopers[0].position.x
+                lowestParatrooperPosition[1] = self.ActiveParatroopers[0].position.y
 
             # End game when time is over
             if(self.ParatroopersReached >= MAX_PARATROOPERS_REACH_BOTTOM):
@@ -336,7 +341,10 @@ class GameSystem:
 
         done = not self.Running and not truncated
          
-        info['LowestParatrooper'] = lowestParatrooperHeight
+        info['CannonAngleCosSin'] = [self.CannonInstance.cos_angle, self.CannonInstance.sin_angle]
+        info['CannonPosition'] = [self.CannonInstance.position.x, self.CannonInstance.position.y]
+        info['LowestParatrooperExists'] = lowestParatrooperExists
+        info['LowestParatrooperPosition'] = lowestParatrooperPosition
         info['DestroyedParatroopers'] = self.ParatroopersDestroyed
         info['EscapedParatroopers'] = self.ParatroopersReached
         info['MissedBullets'] = self.MissedBullets
